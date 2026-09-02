@@ -304,12 +304,14 @@ GazeRefine/
 ## Citation
 
 ```bibtex
-@inproceedings{gazerefine2026,
-  title   = {GazeRefine: Expert Gaze as a Test-Time Prompt
-             for Training-Free Medical Image Segmentation},
-  author  = {..},
-  year    = {2026},
-  note    = {MICAAI 2026}
+@misc{benyahia2026gazerefineexpertgazetesttime,
+      title={GazeRefine: Expert Gaze as a Test-Time Prompt for Training-Free Medical Image Segmentation}, 
+      author={Mohammed Oussama Benyahia and Marouane Tliba and Mohamed Amine Kerkouri and Taifour Yousra and Bin Wang and Max Bengtsson and Gorkem Durak and Elif Keles and Zuheng Ming and Marek Penhaker and Azeddine Beghdadi and Ulas Bagci and Aladine Chetouani},
+      year={2026},
+      eprint={2609.01310},
+      archivePrefix={arXiv},
+      primaryClass={eess.IV},
+      url={https://arxiv.org/abs/2609.01310}, 
 }
 ```
 
