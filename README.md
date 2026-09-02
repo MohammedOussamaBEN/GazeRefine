@@ -7,7 +7,7 @@
 [![timm](https://img.shields.io/badge/timm-1.0%2B-green)](https://github.com/huggingface/pytorch-image-models)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Demo-Space-blue)](https://huggingface.co/spaces/oussamab2n/GazeRefine)
-[![Paper](https://img.shields.io/badge/Paper-MICAAI%202026-red)](https://arxiv.org/abs/XXXX.XXXXX)
+[![Paper](https://img.shields.io/badge/Paper-MICAAI%202026-red)](https://arxiv.org/abs/2609.01310)
 
 GazeRefine is a **training-free** and **zero-shot** medical image segmentation
 framework that uses **expert gaze** as an inference-time prompt to guide frozen
