@@ -93,6 +93,26 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(captured[0]['fixations'],[[.5,.5,120]])
         self.server.on_capture=None
 
+    def test_raw_capture_sync_even_without_fixations(self):
+        self.server.set_session(Image.new('RGB',(8,8)),[],'raw.png')
+        captured=[];self.server.on_capture=captured.append
+        headers={'Content-Type':'application/json','X-GazeRefine-Token':self.server.token}
+        with self.request('/api/capture',{'revision':self.server.session_version,'fixations':[],
+                          'samples':[[.5,.5,0]]},headers) as response:
+            self.assertTrue(json.load(response)['synced'])
+        self.assertEqual(captured[0]['samples'],[[.5,.5,0]])
+        self.server.on_capture=None
+
+    def test_webcam_dwell_profile_handles_jitter_and_slow_samples(self):
+        samples=[[.5,.5,0],[.55,.5,200],[.52,.51,400]]
+        self.assertEqual(samples_to_fixations(samples),[])
+        headers={'Content-Type':'application/json','X-GazeRefine-Token':self.server.token}
+        with self.request('/api/fixations',{'samples':samples,'radius':.08,'max_gap_ms':400},headers) as response:
+            groups=json.load(response)['fixations']
+        self.assertEqual(len(groups),1);self.assertEqual(groups[0][2],400)
+        with self.assertRaises(urllib.error.HTTPError):
+            self.request('/api/fixations',{'samples':samples,'radius':2},headers)
+
     def test_capture_cannot_attach_to_a_changed_desktop_image(self):
         self.server.set_session(Image.new('RGB',(8,8)),[],'first.png')
         old=self.server.session_version

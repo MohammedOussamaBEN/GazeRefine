@@ -3,6 +3,8 @@ import {DwellCounter} from './fixations.js';
 const $=id=>document.getElementById(id);
 let image=null,cleanImage=null,points=[],samples=[],result=null,capture=null,busy=false,token=null;
 let sessionRevision=null,recording=false,stopping=false,live=new DwellCounter(),outside=0,missing=0,inside=0;
+let captureBase=[];
+function dwellSettings(){return $('dwell-profile').value==='strict'?{radius:.035,max_gap_ms:150}:{radius:.08,max_gap_ms:400};}
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
 function status(text){$('status').textContent=text;}
 async function api(path,data){
@@ -127,7 +129,7 @@ function startRecording(){
   try{
     if(!image)throw new Error('Open an image first.');
     if(!capture?.valid)throw new Error('Calibrate the camera first.');
-    samples=[];live=new DwellCounter();inside=outside=missing=0;invalidate();recording=true;
+    captureBase=points.map(p=>p.slice());samples=[];const settings=dwellSettings();live=new DwellCounter(settings.radius,100,settings.max_gap_ms);$('dwell-profile').disabled=true;inside=outside=missing=0;invalidate();recording=true;
     document.body.classList.add('capture-mode');redraw();capture.record();
     $('record').disabled=true;$('start-record').disabled=true;$('stop').disabled=false;$('stop-record').disabled=false;
     $('capture-title').textContent='Recording gaze on this image';$('capture-stats').textContent='0 samples · 0 live fixations';
@@ -139,20 +141,25 @@ async function stopRecording(reason=''){
   stopping=true;recording=false;capture?.stop();live.flush();document.body.classList.remove('capture-mode');$('gaze-cursor').hidden=true;
   $('stop').disabled=true;$('stop-record').disabled=true;$('record').disabled=!capture?.valid;$('start-record').disabled=!capture?.valid;
   try{
-    const data=await api('/api/fixations',{samples});points.push(...data.fixations);invalidate();await redraw();
+    const data=await api('/api/fixations',{samples,...dwellSettings()});points=[...captureBase,...data.fixations];$('reprocess').disabled=!samples.length;invalidate();await redraw();
     $('capture-title').textContent=`Recording saved · ${data.fixations.length} new fixations`;
     $('capture-stats').textContent=`${samples.length} samples · ${data.fixations.length} derived fixations`;
     let sync='';
-    if(sessionRevision!==null&&data.fixations.length){
-      try{await api('/api/capture',{revision:sessionRevision,fixations:data.fixations,samples});sync=' Fixations also sent to the desktop app.';}
+    if(sessionRevision!==null){
+      try{await api('/api/capture',{revision:sessionRevision,fixations:points,samples});sync=data.fixations.length?' Fixations also sent to the desktop app.':' Raw samples also sent to the desktop app.';}
       catch(error){sync=' '+error.message;}
     }
     const message=data.fixations.length?`Collected ${data.fixations.length} fixations from ${samples.length} samples. They are plotted on the image; ready to segment.`:
       `Collected ${samples.length} raw samples but no ≥100 ms dwell groups. On image: ${inside}; outside: ${outside}; face missing: ${missing}. Keep gaze steady on the image, or export raw gaze to inspect it.`;
     status((reason?reason+' ':'')+message+sync);
   }catch(error){status(`Raw gaze remains available to export. ${error.message}`);$('export-gaze').disabled=!samples.length&&!points.length;}
-  finally{stopping=false;}
+  finally{stopping=false;$('dwell-profile').disabled=false;}
 }
+$('reprocess').onclick=async()=>{
+  if(recording||busy||stopping||!samples.length)return;
+  // Reuse the same replace-and-sync path; never duplicate previously derived points.
+  recording=true;await stopRecording('Reprocessed saved gaze.');
+};
 $('record').onclick=startRecording;$('start-record').onclick=startRecording;
 $('stop').onclick=()=>stopRecording();$('stop-record').onclick=()=>stopRecording();
 $('camera-off').onclick=async()=>{

@@ -14,7 +14,7 @@ point to a matching local model.safetensors file. Weights are not included.
 384 and 592 pixels are preview modes, not published benchmark settings.
 1184 pixels is the full-resolution option and takes longer.
 
-For browser webcam capture, click Browser / RealEye in the desktop toolbar.
+For browser webcam capture, choose Open gaze capture in the desktop sidebar.
 The local browser app loads its optional RealEye SDK/models on opt-in and
 requests camera permission. Calibrate before recording. Webcam tracking
 accuracy still requires validation with the intended user and setup.
@@ -32,3 +32,7 @@ Capture workflow: open the image in the desktop app, choose Browser / RealEye,
 complete the 17-target calibration, then click Start recording on the image.
 Stop & use fixations plots the fixations and sends them back to the desktop.
 Calibration targets alone are not image fixation recording.
+
+Preview 3 shows raw sample and fixation counts separately. In browser capture,
+choose a dwell profile and use Rebuild fixations from last recording if needed.
+Raw-only recordings also sync to desktop and can be exported before inference.

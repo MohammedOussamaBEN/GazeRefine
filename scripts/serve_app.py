@@ -96,10 +96,14 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/fixations":
                 if len(data["samples"]) > 100_000:
                     raise ValueError("Record a shorter gaze session.")
-                return self.reply(200, {"fixations":samples_to_fixations(data["samples"])})
+                radius=float(data.get("radius",.035))
+                gap=float(data.get("max_gap_ms",150))
+                if not .01 <= radius <= .2 or not 100 <= gap <= 1000:
+                    raise ValueError("Invalid dwell settings.")
+                return self.reply(200, {"fixations":samples_to_fixations(data["samples"], radius=radius, max_gap_ms=gap)})
             if path == "/api/capture":
                 points = data["fixations"]
-                normalize_fixations(points)
+                if points: normalize_fixations(points)
                 samples = data.get("samples", [])
                 if len(samples) > 100_000:
                     raise ValueError("Record a shorter gaze session.")

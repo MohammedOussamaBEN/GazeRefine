@@ -1,5 +1,5 @@
 const toggle=document.getElementById('toggle-demo');
-toggle.addEventListener('click',()=>{
+toggle?.addEventListener('click',()=>{
   const overlay=toggle.getAttribute('aria-pressed')!=='true';
   document.getElementById('demo-image').src=overlay?'https://raw.githubusercontent.com/MohammedOussamaBEN/GazeRefine/main/img/seg_results.png':'https://raw.githubusercontent.com/MohammedOussamaBEN/GazeRefine/main/img/zero-shot_archi.jpg';
   document.getElementById('demo-label').textContent=overlay?'Published segmentation results':'Method overview';

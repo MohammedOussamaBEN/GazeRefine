@@ -243,3 +243,20 @@ npm run test:capture
 The Python app dependencies must already be installed. Set `PYTHON` to the
 chosen Python executable if needed. QA screenshots go to `outputs/capture-qa/`.
 These checks verify software flow, not the accuracy of eye-gaze estimation.
+
+
+### Capture diagnostics (preview 3)
+
+The desktop now displays raw sample and fixation counts separately. Stop browser
+recording to transfer the complete prompt set; even zero-fixation recordings transfer
+their raw samples and can be exported before segmentation.
+
+Webcam dwell detection defaults to an 8% normalized-image radius and 400 ms maximum
+sample gap; strict mode retains 3.5% and 150 ms. Both require two samples and at least
+100 ms dwell. These are experimental acquisition heuristics, not validated fixation
+filters or changes to the published segmentation settings. Missing-face and
+out-of-image samples always end a dwell. If a recording yields zero fixations,
+inspect the on-image / outside / missing-face counts, select a dwell profile, and
+choose **Rebuild fixations from last recording**. Reprocessing replaces that
+recording's derived prompts rather than duplicating them. Raw samples are never
+silently converted into fixations. Recalibrate if most samples fall outside the image.

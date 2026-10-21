@@ -2,7 +2,7 @@ from pathlib import Path
 import json,shutil,zipfile,hashlib
 r=Path('.').resolve();dest=r/'dist/GazeRefine'
 shutil.copyfile(r/'release/PORTABLE_README.txt',dest/'READ_ME_FIRST.txt')
-meta=json.loads((r/'release/benchmark-output/frozen-exe-v2/result.json').read_text());meta.pop('checkpoint',None)
+meta=json.loads((r/'release/benchmark-output/frozen-exe-v3/result.json').read_text());meta.pop('checkpoint',None)
 (r/'release/cpu-frozen-exe-benchmark.json').write_text(json.dumps(meta,indent=2))
 # Omit dependency demo datasets; they are not needed to decode user images.
 archive=r/'release/GazeRefine-Windows-CPU-preview.zip'

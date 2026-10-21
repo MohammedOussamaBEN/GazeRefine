@@ -1,13 +1,13 @@
-Fixes the image/gaze acquisition flow in the Windows CPU preview.
+GazeRefine Studio preview 3 fixes raw gaze capture returning zero usable fixations and refreshes the desktop interface.
 
-1. Open an image or DICOM slice in GazeRefine.exe.
-2. Choose Browser / RealEye: the same image now loads automatically.
-3. Complete the 17-target camera calibration (step 1, not image fixation recording).
-4. Start recording on the image (step 2). Live cursor, sample trace, sample count and dwell-group count show incoming gaze.
-5. Stop & use fixations plots the markers and sends new fixations back to the desktop app.
+- Raw gaze always transfers back to the desktop, including recordings with zero derived fixations.
+- Separate sample and fixation counts, export before inference, and clearer zero-fixation diagnostics.
+- Selectable webcam (8% radius / 400 ms gap) or strict (3.5% / 150 ms) dwell grouping. Both require ≥100 ms and two samples; missing-face or outside-image samples break the group.
+- Rebuild fixations from the last recording without duplicating prompts. These experimental acquisition settings do not change benchmark presets.
+- Desktop sidebar workflow and larger image workspace. Project website redesigned with a centered academic layout inspired by the supplied reference.
 
-Raw gaze and fixation CSV export is available before segmentation. Missing-face/outside-image diagnostics explain zero-fixation runs. Cancel restores the image. Native SDK options unavailable in the portable build are hidden, avoiding the cv2 error.
+Open an image, choose Open gaze capture, calibrate, record on the image, and Stop & use fixations. Verify the returned fixation count before Run on CPU. If it is zero, inspect on-image / outside / missing-face counts and try the webcam dwell profile or recalibrate.
 
-Nine Python tests, a native image/gaze round-trip check, and a browser flow test using a fake camera/simulated tracker pass. These checks do not establish real-observer gaze accuracy. The rebuilt executable also passes a real-checkpoint CPU inference smoke test.
+Validation: 11 Python tests, native gaze-transfer checks, simulated-camera browser workflow and real-weight portable CPU inference. Simulated gaze tests do not establish real-user tracking accuracy.
 
-Extract the complete archive into a new folder and run GazeRefine.exe. Close the older app/browser session first. This unsigned research preview downloads pretrained weights separately if they are not cached. No medical dataset, journal PDF or pretrained weights are bundled.
+Close the older app and browser session. Extract the complete ZIP into a new folder; keep _internal beside GazeRefine.exe. No Python or GPU required. Weights download separately on first inference. No private manuscript, medical dataset or pretrained weights are bundled.

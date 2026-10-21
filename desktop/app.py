@@ -28,50 +28,127 @@ class GazeRefineApp:
         root.title("GazeRefine | Local CPU segmentation")
         root.geometry("1280x850")
         root.minsize(950,650)
-        root.configure(bg="#101a24")
-        style = ttk.Style(); style.theme_use("clam")
-        style.configure("TFrame", background="#101a24")
-        style.configure("TLabel", background="#101a24", foreground="#e8eff6", font=("Segoe UI",10))
-        style.configure("TButton", font=("Segoe UI",10), padding=7)
-        bar = ttk.Frame(root, padding=16); bar.pack(fill="x")
-        ttk.Label(bar,text="GazeRefine",font=("Segoe UI",22,"bold")).pack(side="left")
-        ttk.Label(bar,text="  Expert gaze → frozen features → segmentation  |  CPU").pack(side="left")
-        toolbar = ttk.Frame(root, padding=(16,0,16,10)); toolbar.pack(fill="x")
-        for label, command in [("Open image / DICOM",self.open_image),("Import fixation CSV",self.import_csv),
-                               ("Undo point",self.undo),("Clear gaze",self.clear),("Save outputs",self.save),
-                               ("Browser / RealEye",self.open_browser)]:
-            ttk.Button(toolbar,text=label,command=command).pack(side="left",padx=(0,7))
-        settings = ttk.Frame(root,padding=(16,0,16,10)); settings.pack(fill="x")
-        self.modality = tk.StringVar(value="colonoscopy")
-        self.resolution = tk.StringVar(value="384")
-        self.weighted = tk.BooleanVar(value=True)
-        self.duration = tk.StringVar(value="200")
-        self.csv_units = tk.StringVar(value="normalized")
-        self.view = tk.StringVar(value="Image + gaze")
-        for label,var,values,width in [("Modality",self.modality,["colonoscopy","mri"],14),
-                                       ("Input pixels",self.resolution,["384","592","1184"],7),
-                                       ("CSV coordinates",self.csv_units,["normalized","pixels"],12),
-                                       ("View",self.view,["Image + gaze","Mask overlay","Binary mask","Gaze prior"],15)]:
-            ttk.Label(settings,text=label+" ").pack(side="left")
-            box=ttk.Combobox(settings,textvariable=var,values=values,width=width,state="readonly")
-            box.pack(side="left",padx=(0,12));box.bind("<<ComboboxSelected>>",lambda _:self.redraw())
-        ttk.Checkbutton(settings,text="Duration weights",variable=self.weighted).pack(side="left")
-        options=ttk.Frame(root,padding=(16,0,16,10));options.pack(fill="x")
-        ttk.Label(options,text="Click duration (ms)").pack(side="left")
-        ttk.Entry(options,textvariable=self.duration,width=7).pack(side="left",padx=8)
+        root.configure(bg="#f4f6fa")
+
+        style=ttk.Style();style.theme_use("clam")
+
+        style.configure("TFrame",background="#f4f6fa")
+
+        style.configure("TLabel",background="#f4f6fa",foreground="#22324b",font=("Segoe UI",10))
+
+        style.configure("TButton",font=("Segoe UI",10),padding=8)
+
+        style.configure("Primary.TButton",background="#2563eb",foreground="white",padding=12)
+
+        style.configure("Section.TLabel",font=("Segoe UI",11,"bold"))
+
+        top=ttk.Frame(root,padding=(22,16));top.pack(fill="x")
+
+        ttk.Label(top,text="GazeRefine Studio",font=("Segoe UI",23,"bold")).pack(side="left")
+
+        ttk.Label(top,text="LOCAL CPU  /  TRAINING-FREE",foreground="#53709a").pack(side="right")
+
+        body=ttk.Frame(root,padding=(18,0,18,0));body.pack(fill="both",expand=True)
+
+        rail=ttk.Frame(body,width=300);rail.pack(side="left",fill="y",padx=(0,16));rail.pack_propagate(False)
+        scroll=tk.Canvas(rail,bg="#f4f6fa",highlightthickness=0,width=276)
+        scrollbar=ttk.Scrollbar(rail,orient="vertical",command=scroll.yview)
+        scrollbar.pack(side="right",fill="y");scroll.pack(side="left",fill="both",expand=True)
+        scroll.configure(yscrollcommand=scrollbar.set)
+        side=ttk.Frame(scroll,padding=(0,0,10,10));window=scroll.create_window((0,0),window=side,anchor="nw")
+        side.bind("<Configure>",lambda _:scroll.configure(scrollregion=scroll.bbox("all")))
+        scroll.bind("<Configure>",lambda e:scroll.itemconfigure(window,width=e.width))
+        def wheel(event):
+            widget=root.winfo_containing(event.x_root,event.y_root)
+            if widget and str(widget).startswith(str(rail)):scroll.yview_scroll(-int(event.delta/120),"units")
+        root.bind("<MouseWheel>",wheel,add="+")
+
+        viewer=ttk.Frame(body);viewer.pack(side="left",fill="both",expand=True)
+
+        self.modality=tk.StringVar(value="colonoscopy");self.resolution=tk.StringVar(value="384")
+
+        self.weighted=tk.BooleanVar(value=True);self.duration=tk.StringVar(value="200")
+
+        self.csv_units=tk.StringVar(value="normalized");self.view=tk.StringVar(value="Image + gaze")
+
         self.source=tk.StringVar(value="Browser / RealEye webcam")
+
+        def section(title):ttk.Label(side,text=title,style="Section.TLabel",padding=(0,12,0,6)).pack(anchor="w")
+
+        def button(title,command):ttk.Button(side,text=title,command=command).pack(fill="x",pady=3)
+
+        def select(label,var,values):
+
+            ttk.Label(side,text=label).pack(anchor="w",pady=(6,2))
+
+            box=ttk.Combobox(side,textvariable=var,values=values,state="readonly");box.pack(fill="x")
+
+            box.bind("<<ComboboxSelected>>",lambda _:self.redraw())
+
+        section("01  Image & model")
+
+        button("Open image / DICOM",self.open_image)
+
+        select("Modality",self.modality,["colonoscopy","mri"])
+
+        select("Resolution · 384 / 592 preview",self.resolution,["384","592","1184"])
+
+        section("02  Gaze prompts")
+
+        select("CSV coordinate units",self.csv_units,["normalized","pixels"])
+
+        button("Import fixation CSV",self.import_csv)
+
         sources=["Browser / RealEye webcam"] if getattr(sys,"frozen",False) else ["Browser / RealEye webcam","EyeTrax webcam","Tobii Pro hardware"]
-        ttk.Combobox(options,textvariable=self.source,values=sources,state="readonly",width=25).pack(side="left",padx=8)
-        ttk.Button(options,text="Start gaze capture",command=self.start_tracker).pack(side="left",padx=4)
-        ttk.Button(options,text="Stop / make fixations",command=self.stop_tracker).pack(side="left",padx=4)
-        self.run_button=ttk.Button(options,text="Run on CPU",command=self.predict);self.run_button.pack(side="right")
-        self.canvas=tk.Canvas(root,bg="#080f17",highlightthickness=0,cursor="crosshair")
-        self.canvas.pack(fill="both",expand=True,padx=16)
-        self.canvas.bind("<Configure>",lambda _:self.redraw())
-        self.canvas.bind("<Button-1>",self.click)
-        self.status=tk.StringVar(value="Open an image, then add or import gaze. 384/592 are previews; 1184 is full resolution.")
-        ttk.Label(root,textvariable=self.status,padding=12,wraplength=1200).pack(fill="x")
-        ttk.Label(root,text="Research prototype. Validate masks before use. Webcam gaze is not a substitute for expert eye-tracker measurements.",padding=(12,0,12,10)).pack(fill="x")
+
+        select("Capture source",self.source,sources)
+
+        button("Open gaze capture",self.start_tracker)
+
+        button("Stop hardware capture",self.stop_tracker)
+
+        ttk.Label(side,text="Manual point duration (ms)").pack(anchor="w",pady=(6,2))
+
+        ttk.Entry(side,textvariable=self.duration).pack(fill="x")
+
+        row=ttk.Frame(side);row.pack(fill="x",pady=5)
+
+        ttk.Button(row,text="Undo",command=self.undo).pack(side="left",expand=True,fill="x")
+
+        ttk.Button(row,text="Clear",command=self.clear).pack(side="left",expand=True,fill="x")
+
+        ttk.Checkbutton(side,text="Duration-weighted gaze",variable=self.weighted).pack(anchor="w")
+
+        self.counts=tk.StringVar(value="0 raw samples  ·  0 fixation prompts")
+
+        ttk.Label(side,textvariable=self.counts,wraplength=260,foreground="#2563eb",padding=(0,8)).pack(anchor="w")
+
+        self.run_button=ttk.Button(side,text="03  Run segmentation on CPU",command=self.predict,style="Primary.TButton")
+
+        self.run_button.pack(fill="x",pady=5)
+
+        button("Export gaze / save results",self.save)
+
+        bar=ttk.Frame(viewer,padding=(12,8));bar.pack(fill="x")
+
+        ttk.Label(bar,text="IMAGE WORKSPACE",style="Section.TLabel").pack(side="left")
+
+        box=ttk.Combobox(bar,textvariable=self.view,values=["Image + gaze","Mask overlay","Binary mask","Gaze prior"],state="readonly",width=19)
+
+        box.pack(side="right");box.bind("<<ComboboxSelected>>",lambda _:self.redraw())
+
+        self.canvas=tk.Canvas(viewer,bg="#111d2e",highlightthickness=0,cursor="crosshair")
+
+        self.canvas.pack(fill="both",expand=True)
+
+        self.canvas.bind("<Configure>",lambda _:self.redraw());self.canvas.bind("<Button-1>",self.click)
+
+        self.status=tk.StringVar(value="Open an image, then import gaze, capture with your webcam, or click to add a prompt.")
+
+        ttk.Label(root,textvariable=self.status,padding=(20,12),wraplength=1100).pack(fill="x")
+
+        ttk.Label(root,text="Research preview · 1184 px is full resolution · Webcam dwell groups are experimental",padding=(20,0,20,10),foreground="#65758b").pack(fill="x")
+
         root.protocol("WM_DELETE_WINDOW",self.close)
         root.after(50,self.poll)
 
@@ -90,6 +167,7 @@ class GazeRefineApp:
         except Exception as exc:self.error(exc)
 
     def redraw(self):
+        self.counts.set(f"{len(self.samples)} raw samples  ·  {len(self.points)} fixation prompts")
         self.canvas.delete("all")
         if self.image is None:
             self.canvas.create_text(self.canvas.winfo_width()/2,self.canvas.winfo_height()/2,text="Open a medical image to begin",fill="#91a7b9",font=("Segoe UI",20));return
@@ -133,7 +211,7 @@ class GazeRefineApp:
 
     def clear(self):
         if self.busy or self.tracker:return
-        self.points=[];self.result=None;self.view.set("Image + gaze");self.redraw()
+        self.points=[];self.samples=[];self.result=None;self.view.set("Image + gaze");self.redraw()
 
     def start_tracker(self):
         if self.image is None:return self.error("Open an image first.")
@@ -175,27 +253,28 @@ class GazeRefineApp:
             if kind=="sample" and self.tracker:
                 x,y,t=value;rx,ry,w,h=self.rect
                 px=(x-self.canvas.winfo_rootx()-rx)/w;py=(y-self.canvas.winfo_rooty()-ry)/h
-                self.samples.append([px,py,t])
+                self.samples.append([px,py,t]);self.counts.set(f"{len(self.samples)} raw samples · stop capture to derive fixations")
             elif kind=="result":
                 self.result=value;self.busy=False;self.run_button.state(["!disabled"]);self.view.set("Mask overlay");self.redraw()
                 m=value["metadata"];self.status.set(f"Done in {m['seconds_including_model_load']:.1f}s | CPU | {m['resolution']} px | {'Preview; not benchmark settings' if m['preview'] else 'Full resolution'}")
             elif kind=="browser_capture":
                 if self.browser_server and value['revision']==self.browser_server.session_version:
-                    self.points.extend(value['fixations']);self.samples=value['samples'];self.result=None
+                    self.points=[p[:] for p in value['fixations']];self.samples=value['samples'];self.result=None
                     self.view.set("Image + gaze");self.redraw()
-                    self.status.set(f"Received {len(value['fixations'])} fixations from browser gaze capture. Ready to run on CPU.")
+                    self.status.set(f"Received {len(value['samples'])} raw samples and {len(value['fixations'])} fixations. " + ("Ready to run on CPU." if self.points else "No qualifying dwell groups. Adjust dwell settings in the browser and rebuild, or export raw gaze."))
             elif kind in ("tracker_error","inference_error"):
                 if kind=="tracker_error" and self.tracker:self.tracker.stop();self.tracker=None
                 self.busy=False;self.run_button.state(["!disabled"]);self.status.set(value);self.error(value)
         self.root.after(50,self.poll)
 
     def save(self):
-        if self.result is None:return self.error("Run segmentation first.")
+        if not self.points and not self.samples:return self.error("Collect or import gaze first.")
         path=filedialog.askdirectory(title="Save output folder")
         if not path:return
         p=Path(path)
-        for key in ("mask","overlay","prior"):self.result[key].save(p/f"gazerefine_{key}.png")
-        (p/"gazerefine_settings.json").write_text(json.dumps(self.result["metadata"],indent=2))
+        if self.result:
+            for key in ("mask","overlay","prior"):self.result[key].save(p/f"gazerefine_{key}.png")
+            (p/"gazerefine_settings.json").write_text(json.dumps(self.result["metadata"],indent=2))
         for name,rows,columns in [("fixations",self.points,["x","y","duration"]),("samples",self.samples,["x","y","timestamp_ms"])]:
             with (p/f"gazerefine_{name}.csv").open("w",newline="") as f:
                 writer=csv.writer(f);writer.writerow(columns);writer.writerows(rows)

@@ -35,7 +35,22 @@ const fakeSDK=`export class WebcamETLight {async initialize(){} detectFace(){ret
  await page.locator('#stop-record').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('no ≥100 ms dwell groups'));
  const noFaceStatus=await page.locator('#status').textContent();
  if(await page.locator('#export-gaze').isDisabled())throw Error('Raw export disabled after zero-fixation recording');
- await page.locator('#camera-off').click();await page.evaluate(()=>window.__noFace=false);await page.locator('#camera-start').click();await page.waitForFunction(()=>!document.querySelector('#calibration').hidden,null,{timeout:10000});await page.locator('#cancel-calibration').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('cancelled'));if(await page.locator('#calibration').isVisible())throw Error('Cancel did not restore image');
+ if(captures.length!==2||captures[1].samples.length<1)throw Error('Raw-only recording did not sync');
+ await page.locator('#dwell-profile').selectOption('strict');await page.locator('#reprocess').click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Reprocessed saved gaze.'));
+ await page.locator('#camera-off').click();
+ // Test cancellation directly without reacquiring Chrome's one-shot fake camera.
+ await page.evaluate(async()=>{
+   const {WebcamCapture}=await import('/gaze.js');
+   const capture=new WebcamCapture(document.querySelector('#video'),()=>{},()=>{});
+   capture.sdk={getRecommendedPattern:()=>17,getCalibrationPointsInPixels:()=>[{x:100,y:100}]};
+   capture.frame=()=>({});capture.tracker={detectFace:()=>true};
+   window.cancelCheck=capture.calibrate().catch(e=>{window.cancelMessage=e.message;});
+ });
+ await page.locator('#cancel-calibration').click();
+ await page.waitForFunction(()=>window.cancelMessage?.includes('cancelled'));
+ if(await page.locator('#calibration').isVisible())throw Error('Cancel did not restore image');
+
  console.log(JSON.stringify({errors,calibrationTargets:17,fixationsReturned:data.fixations.length,rawSamples:data.samples.length,status:firstStatus,noFaceStatus}));
  if(errors.length)throw Error(errors.join('\n'));
  }catch(error){for(const p of browser?.contexts()[0]?.pages()||[]){console.error(await p.evaluate(()=>({status:document.querySelector('#status')?.textContent,calibrationHidden:document.querySelector('#calibration')?.hidden,cameraDisabled:document.querySelector('#camera-start')?.disabled,videoReady:document.querySelector('#video')?.readyState})));await p.screenshot({path:path.join(out,'failure.png')});}throw error;}finally{await browser?.close();server.kill();}
