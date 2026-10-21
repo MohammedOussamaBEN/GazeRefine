@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv-build/
+venv/
+build/
+dist/
+*.spec
+.pytest_cache/
+*.safetensors
+*.pth
+*.pt
+outputs/
+release/cpu-smoke/
+release/benchmark-output/
+release/*.zip
+.env

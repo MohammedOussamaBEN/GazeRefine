@@ -112,10 +112,11 @@ _MODEL_CACHE: dict[str, GazeRefine] = {}
 
 def _get_model(preset: str, device: torch.device) -> GazeRefine:
     """Load (or return a cached) GazeRefine model for the given preset."""
-    if preset not in _MODEL_CACHE:
+    key = (preset, str(device))
+    if key not in _MODEL_CACHE:
         cfg = PRESETS[preset]
-        _MODEL_CACHE[preset] = GazeRefine(dino_name=DINO_NAME, **cfg).to(device).eval()
-    return _MODEL_CACHE[preset]
+        _MODEL_CACHE[key] = GazeRefine(dino_name=DINO_NAME, **cfg).to(device).eval()
+    return _MODEL_CACHE[key]
 
 
 # ── main public function ────────────────────────────────────────────────────

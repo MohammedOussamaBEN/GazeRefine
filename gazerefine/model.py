@@ -32,6 +32,26 @@ from .constants import IMG_SIZE, PATCH_SIZE
 EPS = 1e-12
 
 
+def affinity_neighbors(Pv: torch.Tensor, k: int, temperature: float, chunk_size: int = 512):
+    """Exact kNN in row chunks: avoids materializing the complete N-by-N matrix."""
+    if k < 1 or temperature <= 0:
+        raise ValueError("k and temperature must be positive")
+    p = F.normalize(Pv, p=2, dim=-1)
+    indices, weights = [], []
+    for start in range(0, p.shape[1], chunk_size):
+        sim = torch.bmm(p[:, start:start+chunk_size], p.transpose(1, 2))
+        values, index = sim.topk(min(k, p.shape[1]), dim=-1)
+        indices.append(index)
+        weights.append(F.softmax(values / temperature, dim=-1))
+    return torch.cat(indices, dim=1), torch.cat(weights, dim=1)
+
+
+def propagate_neighbors(S, neighbors):
+    index, weight = neighbors
+    expanded = S.unsqueeze(1).expand(-1, S.shape[1], -1)
+    return (weight * torch.gather(expanded, 2, index)).sum(-1)
+
+
 def knn_affinity_refinement(
     Pv: torch.Tensor, S: torch.Tensor, k: int = 5, temperature: float = 0.05
 ) -> torch.Tensor:
@@ -43,17 +63,7 @@ def knn_affinity_refinement(
     Pv : (B, N, D) raw (unnormalized) patch embeddings.
     S  : (B, N)    current per-patch score to be smoothed.
     """
-    B, N, D = Pv.shape
-    Pv_norm = F.normalize(Pv, p=2, dim=-1)
-
-    sim_matrix = torch.bmm(Pv_norm, Pv_norm.transpose(1, 2))            # (B, N, N)
-    topk_vals, topk_indices = torch.topk(sim_matrix, k=k, dim=-1)        # (B, N, k)
-    weights = F.softmax(topk_vals / temperature, dim=-1)                 # (B, N, k)
-
-    S_expanded = S.unsqueeze(1).expand(B, N, N)
-    S_neighbors = torch.gather(S_expanded, dim=2, index=topk_indices)    # (B, N, k)
-
-    return torch.sum(weights * S_neighbors, dim=-1)                     # (B, N)
+    return propagate_neighbors(S, affinity_neighbors(Pv, k, temperature))
 
 
 class GazeRefine(nn.Module):
@@ -99,6 +109,7 @@ class GazeRefine(nn.Module):
         knn_k: int = 5,
         knn_temp: float = 0.1,
         gaze_anchor_weight: float = 0.6,
+        checkpoint: str | None = None,
     ):
         super().__init__()
         assert img_size % patch_size == 0, "img_size must be a multiple of patch_size"
@@ -113,7 +124,8 @@ class GazeRefine(nn.Module):
         self.knn_temp = knn_temp
         self.gaze_anchor_weight = gaze_anchor_weight
 
-        self.visual_enc = FrozenDINOv3(dino_name, extract_mode=extract_mode)
+        self.visual_enc = FrozenDINOv3(dino_name, extract_mode=extract_mode,
+                                      img_size=img_size, checkpoint=checkpoint)
 
     # ------------------------------------------------------------------ #
     def _gaze_weights(self, fixation: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -158,6 +170,7 @@ class GazeRefine(nn.Module):
         best_S = W_fg.clone()
         S_prev = W_fg.clone()
         active = torch.ones(B, dtype=torch.bool, device=device)
+        neighbors = affinity_neighbors(Pv, self.knn_k, self.knn_temp) if self.knn_refine else None
 
         for _ in range(self.max_iters):
             W_fg_norm = W_fg_curr / (W_fg_curr.sum(dim=-1, keepdim=True) + EPS)
@@ -175,7 +188,7 @@ class GazeRefine(nn.Module):
 
             S_iter = self._score(Pv_norm, F_proto_norm, B_proto_norm)
             if self.knn_refine:
-                S_iter = knn_affinity_refinement(Pv, S_iter, k=self.knn_k, temperature=self.knn_temp)
+                S_iter = propagate_neighbors(S_iter, neighbors)
 
             S_new = S_prev.clone()
             S_new[active] = S_iter[active]
