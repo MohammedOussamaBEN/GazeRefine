@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from gazerefine.interactive import AppConfig, CPUInference, load_image, samples_to_fixations
+from gazerefine.interactive import AppConfig, CPUInference, load_image, samples_to_fixations, normalize_fixations
 
 
 def data_url(image):
@@ -29,7 +29,17 @@ class AppServer(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(32)
         self.engine = CPUInference()
         self.inference_lock = threading.Lock()
+        self.session_lock = threading.Lock()
+        self.session_version = 0
+        self.session = None
+        self.on_capture = None
         super().__init__(address, Handler)
+
+    def set_session(self, image, fixations, name):
+        with self.session_lock:
+            self.session_version += 1
+            self.session = {"image":data_url(image), "fixations":[p[:] for p in fixations],
+                            "name":name, "revision":self.session_version}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -60,7 +70,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == "/api/config":
             return self.reply(200, {"token":self.server.token, "device":"cpu"})
-        allowed = {"/":"index.html", "/app.js":"app.js", "/style.css":"style.css", "/gaze.js":"gaze.js"}
+        if path == "/api/session":
+            if self.headers.get("X-GazeRefine-Token") != self.server.token:
+                return self.reply(403, {"error":"Invalid local app session."})
+            with self.server.session_lock:
+                return self.reply(200, {"session":self.server.session})
+        allowed = {"/":"index.html", "/app.js":"app.js", "/style.css":"style.css", "/gaze.js":"gaze.js", "/fixations.js":"fixations.js"}
         if path not in allowed:
             return self.reply(404, {"error":"Not found"})
         file = ROOT/"webapp"/allowed[path]
@@ -82,6 +97,20 @@ class Handler(BaseHTTPRequestHandler):
                 if len(data["samples"]) > 100_000:
                     raise ValueError("Record a shorter gaze session.")
                 return self.reply(200, {"fixations":samples_to_fixations(data["samples"])})
+            if path == "/api/capture":
+                points = data["fixations"]
+                normalize_fixations(points)
+                samples = data.get("samples", [])
+                if len(samples) > 100_000:
+                    raise ValueError("Record a shorter gaze session.")
+                samples_to_fixations(samples)
+                with self.server.session_lock:
+                    if self.server.session is None or data.get("revision") != self.server.session_version:
+                        return self.reply(409, {"error":"The desktop image changed. Gaze remains in this browser; reopen Browser / RealEye to sync the new image."})
+                    if self.server.on_capture:
+                        self.server.on_capture({"revision":self.server.session_version,
+                                                "fixations":points,"samples":samples})
+                return self.reply(200, {"synced":True})
             if path != "/api/predict":
                 return self.reply(404, {"error":"Not found"})
             if not self.server.inference_lock.acquire(blocking=False):

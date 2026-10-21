@@ -18,3 +18,5 @@ release/*.log
 release/*.pid
 release/pull_request.md
 .env
+node_modules/
+test-results/

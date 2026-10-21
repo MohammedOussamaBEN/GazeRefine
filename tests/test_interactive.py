@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from PIL import Image
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from gazerefine.interactive import normalize_fixations, read_fixations, samples_to_fixations
 from gazerefine.model import affinity_neighbors, propagate_neighbors
@@ -78,6 +79,28 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(len(json.load(response)['fixations']),1)
         with self.assertRaises(urllib.error.HTTPError) as cm:self.request('/../README.md')
         self.assertEqual(cm.exception.code,404)
+
+    def test_desktop_image_session_and_captured_gaze_transfer(self):
+        self.server.set_session(Image.new('RGB',(16,12),'gray'),[[.4,.5,200]],'example.png')
+        headers={'Content-Type':'application/json','X-GazeRefine-Token':self.server.token}
+        with self.request('/api/session',headers=headers) as response:
+            session=json.load(response)['session']
+        self.assertTrue(session['image'].startswith('data:image/png;base64,'))
+        self.assertEqual(session['name'],'example.png')
+        captured=[];self.server.on_capture=captured.append
+        with self.request('/api/capture',{'revision':session['revision'],'fixations':[[.5,.5,120]],'samples':[[.5,.5,0],[.5,.5,120]]},headers) as response:
+            self.assertTrue(json.load(response)['synced'])
+        self.assertEqual(captured[0]['fixations'],[[.5,.5,120]])
+        self.server.on_capture=None
+
+    def test_capture_cannot_attach_to_a_changed_desktop_image(self):
+        self.server.set_session(Image.new('RGB',(8,8)),[],'first.png')
+        old=self.server.session_version
+        self.server.set_session(Image.new('RGB',(8,8)),[],'second.png')
+        headers={'Content-Type':'application/json','X-GazeRefine-Token':self.server.token}
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.request('/api/capture',{'revision':old,'fixations':[[.5,.5,100]],'samples':[]},headers)
+        self.assertEqual(cm.exception.code,409)
 
 
 if __name__=='__main__':unittest.main()

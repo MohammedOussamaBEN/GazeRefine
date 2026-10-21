@@ -27,3 +27,8 @@ See APP_GUIDE.md, THIRD_PARTY.md and THIRD_PARTY_LICENSES for details.
 
 Project: https://mohammedoussamaben.github.io/GazeRefine/
 Source: https://github.com/MohammedOussamaBEN/GazeRefine/tree/codex/project-site-cpu-desktop
+
+Capture workflow: open the image in the desktop app, choose Browser / RealEye,
+complete the 17-target calibration, then click Start recording on the image.
+Stop & use fixations plots the fixations and sends them back to the desktop.
+Calibration targets alone are not image fixation recording.

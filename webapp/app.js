@@ -1,6 +1,8 @@
 import {imagePoint,WebcamCapture} from './gaze.js';
+import {DwellCounter} from './fixations.js';
 const $=id=>document.getElementById(id);
 let image=null,cleanImage=null,points=[],samples=[],result=null,capture=null,busy=false,token=null;
+let sessionRevision=null,recording=false,stopping=false,live=new DwellCounter(),outside=0,missing=0,inside=0;
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
 function status(text){$('status').textContent=text;}
 async function api(path,data){
@@ -18,16 +20,17 @@ async function redraw(){
     ctx.fillStyle='white';ctx.font=`${Math.max(13,canvas.width/55)}px sans-serif`;ctx.fillText(String(i+1),p[0]*canvas.width+r,p[1]*canvas.height-r);
   }
   $('count').textContent=`${points.length} fixations`;
+  $('export-gaze').disabled=!points.length&&!samples.length;
 }
 function invalidate(){result=null;$('downloads').hidden=true;$('view').value='input';}
 $('image-file').onchange=async event=>{
-  if(busy||capture?.active)return status('Stop capture and wait for inference before changing image.');
+  if(busy||recording||capture?.calibrating)return status('Stop capture and wait for inference before changing image.');
   const file=event.target.files[0];if(!file)return;
   try{
     const url=URL.createObjectURL(file);try{image=await loadImage(url);}finally{URL.revokeObjectURL(url);}
     if(image.width*image.height>40e6)throw new Error('Choose an image under 40 megapixels.');
     const original=document.createElement('canvas');original.width=image.width;original.height=image.height;original.getContext('2d').drawImage(image,0,0);cleanImage=original.toDataURL('image/png');
-    points=[];samples=[];invalidate();$('image-name').textContent=file.name;$('empty').hidden=true;canvas.hidden=false;await redraw();status('Image ready. Add gaze points or import a CSV.');
+    points=[];samples=[];sessionRevision=null;invalidate();$('image-name').textContent=file.name;$('empty').hidden=true;canvas.hidden=false;await redraw();status('Image ready. Add gaze points or import a CSV.');
   }catch(error){status(error.message);}
 };
 canvas.onclick=event=>{
@@ -81,26 +84,95 @@ $('run').onclick=async()=>{
     const m=result.metadata;status(`Done in ${m.seconds_including_model_load}s · CPU · ${m.resolution} px · ${m.preview?'Preview (not benchmark settings)':'Full resolution'}`);
   }catch(error){status(error.message);}finally{busy=false;$('run').disabled=false;}
 };
+function trackingSample(x,y,t,isRecording){
+  const finite=Number.isFinite(x)&&Number.isFinite(y);
+  let px=-1,py=-1;
+  if(finite){[px,py]=imagePoint(x,y,canvas.getBoundingClientRect());}
+  const onImage=finite&&px>=0&&px<=1&&py>=0&&py<=1;
+  $('tracking-state').textContent=!finite?'Face not detected':onImage?'Gaze on image':'Gaze outside image';
+  $('tracking-state').dataset.state=onImage?'ok':'warning';
+  const cursor=$('gaze-cursor');cursor.hidden=!finite;
+  if(finite){cursor.style.left=x+'px';cursor.style.top=y+'px';cursor.dataset.state=onImage?'ok':'warning';}
+  if(isRecording&&recording){
+    // Invalid-face sentinel ends a dwell; do not bridge over missing tracking.
+    samples.push([px,py,t]);live.push(px,py,t);
+    if(!finite)missing++;else if(!onImage)outside++;else{
+      inside++;ctx.beginPath();ctx.arc(px*canvas.width,py*canvas.height,Math.max(2,canvas.width/230),0,Math.PI*2);ctx.fillStyle='#69efcb88';ctx.fill();
+    }
+    $('capture-stats').textContent=`${samples.length} samples · ${live.count} live fixations`;
+    $('tracking-counts').textContent=`${inside} on image · ${outside} outside · ${missing} without face`;
+    $('export-gaze').disabled=false;
+    if(samples.length>=100000)stopRecording('Recording stopped at the sample limit.');
+  }
+}
+function trackerStatus(message){
+  status(message);
+  if(capture&&!capture.valid&&!capture.calibrating&&recording)stopRecording(message);
+}
 $('camera-start').onclick=async()=>{
-  if(!image)return status('Open an image before calibrating.');if(busy)return;
-  $('camera-start').disabled=true;capture?.close();
-  capture=new WebcamCapture($('video'),(x,y,t)=>{const [px,py]=imagePoint(x,y,canvas.getBoundingClientRect());samples.push([px,py,t]);},status);
-  try{status('Loading RealEye and requesting webcam access…');await capture.start();$('record').disabled=false;}
-  catch(error){status(error.message);}finally{$('camera-start').disabled=false;}
+  if(!image)return status('Open an image before calibrating.');if(busy||recording)return;
+  $('camera-start').disabled=true;$('record').disabled=true;$('start-record').disabled=true;capture?.close();
+  capture=new WebcamCapture($('video'),trackingSample,trackerStatus);
+  try{
+    status('Step 1/2: loading camera calibration. Fixations on the image are recorded only after calibration.');
+    await capture.start();
+    $('record').disabled=false;$('start-record').disabled=false;$('capture-bar').hidden=false;$('tracking-feedback').hidden=false;
+    $('capture-title').textContent='Step 2 of 2 · Image ready for gaze recording';
+    $('view').value='input';await redraw();$('stage').scrollIntoView({block:'center',behavior:'instant'});
+  }catch(error){status(error.message);$('capture-bar').hidden=true;$('gaze-cursor').hidden=true;}
+  finally{$('camera-start').disabled=false;}
 };
-$('record').onclick=()=>{
-  if(busy)return;try{samples=[];capture.record();$('record').disabled=true;$('stop').disabled=false;status('Recording gaze. Look at the target, then stop.');}catch(error){status(error.message);}
-};
-$('stop').onclick=async()=>{
-  capture?.stop();$('stop').disabled=true;$('record').disabled=!capture?.valid;
-  try{const data=await api('/api/fixations',{samples});points.push(...data.fixations);invalidate();await redraw();status(`Added ${data.fixations.length} dwell groups (≥100 ms).`);}catch(error){status(error.message);}
-};
-$('camera-off').onclick=()=>{
-  capture?.close();$('record').disabled=true;$('stop').disabled=true;status('Camera off. Recalibrate to record a new session.');
+function startRecording(){
+  if(busy||recording||stopping)return;
+  try{
+    if(!image)throw new Error('Open an image first.');
+    if(!capture?.valid)throw new Error('Calibrate the camera first.');
+    samples=[];live=new DwellCounter();inside=outside=missing=0;invalidate();recording=true;
+    document.body.classList.add('capture-mode');redraw();capture.record();
+    $('record').disabled=true;$('start-record').disabled=true;$('stop').disabled=false;$('stop-record').disabled=false;
+    $('capture-title').textContent='Recording gaze on this image';$('capture-stats').textContent='0 samples · 0 live fixations';
+    status('Recording. Look at the target structure. The gaze cursor and trace show incoming samples; press Stop & use fixations when finished.');
+  }catch(error){recording=false;document.body.classList.remove('capture-mode');status(error.message);}
+}
+async function stopRecording(reason=''){
+  if(!recording||stopping)return;
+  stopping=true;recording=false;capture?.stop();live.flush();document.body.classList.remove('capture-mode');$('gaze-cursor').hidden=true;
+  $('stop').disabled=true;$('stop-record').disabled=true;$('record').disabled=!capture?.valid;$('start-record').disabled=!capture?.valid;
+  try{
+    const data=await api('/api/fixations',{samples});points.push(...data.fixations);invalidate();await redraw();
+    $('capture-title').textContent=`Recording saved · ${data.fixations.length} new fixations`;
+    $('capture-stats').textContent=`${samples.length} samples · ${data.fixations.length} derived fixations`;
+    let sync='';
+    if(sessionRevision!==null&&data.fixations.length){
+      try{await api('/api/capture',{revision:sessionRevision,fixations:data.fixations,samples});sync=' Fixations also sent to the desktop app.';}
+      catch(error){sync=' '+error.message;}
+    }
+    const message=data.fixations.length?`Collected ${data.fixations.length} fixations from ${samples.length} samples. They are plotted on the image; ready to segment.`:
+      `Collected ${samples.length} raw samples but no ≥100 ms dwell groups. On image: ${inside}; outside: ${outside}; face missing: ${missing}. Keep gaze steady on the image, or export raw gaze to inspect it.`;
+    status((reason?reason+' ':'')+message+sync);
+  }catch(error){status(`Raw gaze remains available to export. ${error.message}`);$('export-gaze').disabled=!samples.length&&!points.length;}
+  finally{stopping=false;}
+}
+$('record').onclick=startRecording;$('start-record').onclick=startRecording;
+$('stop').onclick=()=>stopRecording();$('stop-record').onclick=()=>stopRecording();
+$('camera-off').onclick=async()=>{
+  if(recording)await stopRecording();capture?.close();$('record').disabled=true;$('start-record').disabled=true;$('stop').disabled=true;$('stop-record').disabled=true;
+  $('gaze-cursor').hidden=true;document.body.classList.remove('capture-mode');$('tracking-state').textContent='Camera off';$('tracking-state').dataset.state='warning';status('Camera off. Saved gaze can still be exported or used for segmentation.');
 };
 function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('export-gaze').onclick=()=>{download('x,y,duration\n'+points.map(r=>r.join(',')).join('\n'),'gazerefine_fixations.csv','text/csv');if(samples.length)download('x,y,timestamp_ms\n'+samples.map(r=>r.join(',')).join('\n'),'gazerefine_samples.csv','text/csv');};
 $('export-config').onclick=()=>{if(result)download(JSON.stringify(result.metadata,null,2),'gazerefine_settings.json','application/json');};
 window.addEventListener('beforeunload',()=>capture?.close());
-window.addEventListener('resize',()=>{if(capture?.valid){capture.close();$('record').disabled=true;status('Viewport changed. Recalibrate the webcam.');}});
-try{const config=await (await fetch('/api/config')).json();token=config.token;}catch(error){status('Start this app with python scripts/serve_app.py to enable local CPU inference.');}
+window.addEventListener('resize',()=>{if(capture?.valid&&(innerWidth!==capture.size[0]||innerHeight!==capture.size[1])){capture.close();$('gaze-cursor').hidden=true;$('record').disabled=true;$('start-record').disabled=true;if(recording)stopRecording('Viewport changed; recalibrate before recording again.');else status('Viewport changed. Recalibrate the webcam.');}});
+try{
+  const config=await (await fetch('/api/config')).json();token=config.token;
+  const response=await fetch('/api/session',{headers:{'X-GazeRefine-Token':token}});
+  if(response.ok){
+    const data=await response.json();
+    if(data.session){
+      const session=data.session;image=await loadImage(session.image);cleanImage=session.image;points=session.fixations;sessionRevision=session.revision;
+      $('image-name').textContent=session.name;$('empty').hidden=true;canvas.hidden=false;await redraw();
+      status('Desktop image loaded automatically. Check the modality setting, then calibrate and record gaze on this image.');
+    }
+  }
+}catch(error){status('Start this app with python scripts/serve_app.py to enable local CPU inference.');}

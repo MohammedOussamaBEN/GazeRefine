@@ -175,7 +175,7 @@ The native/browser apps are not executed by the static project website.
 
 ## Windows executable build
 
-A portable Windows CPU preview is available at https://github.com/MohammedOussamaBEN/GazeRefine/releases/tag/cpu-studio-preview-1. Extract the whole ZIP and run GazeRefine.exe. It is unsigned; model weights download separately on first inference.
+A portable Windows CPU preview is available at https://github.com/MohammedOussamaBEN/GazeRefine/releases/tag/cpu-studio-preview-2. Extract the whole ZIP and run GazeRefine.exe. It is unsigned; model weights download separately on first inference.
 
 To rebuild, run **Build Windows desktop app** in GitHub Actions (`workflow_dispatch`).
 It produces a downloadable `GazeRefine-Windows-CPU` artifact; it does not
@@ -202,3 +202,44 @@ python scripts/benchmark_cpu.py --checkpoint /path/to/model.safetensors
 The benchmark uses shipped image/fixation examples and real pretrained features,
 exports masks and records elapsed time. No camera or physical eye tracker is
 required for those checks. Research prototype; not a diagnostic device.
+
+
+## Image gaze capture (preview 2)
+
+Open the image or DICOM slice in the desktop app, then choose **Browser /
+RealEye**. The same image and existing fixation prompts now load automatically
+in the browser. Calibration and experimental gaze recording are separate:
+
+1. **Calibrate camera**: follow the 17 targets. The app shows a camera preview
+   and checks for a detected face. These target observations are not image
+   fixations. Cancel restores the image; failed face detection shows a reason.
+2. After calibration, the image returns. Choose **Start recording** in its
+   viewer. The image fills a capture view with a live gaze cursor, sample trace,
+   sample count, and a running dwell-group count. The app reports gaze outside
+   the image or a missing face separately.
+3. Choose **Stop & use fixations**. Derived fixation markers appear on the
+   image. With a desktop-origin image, new fixations are also sent back to the
+   native app. You can run segmentation in either interface.
+4. **Export fixations + raw gaze** is available after capture, even before
+   segmentation, including sessions that produced no dwell groups. In that
+   case inspect the missing-face/outside-image counts and raw samples.
+
+Keep the viewport size fixed after calibration. Recalibrate after resizing.
+Do not change the desktop image during a browser recording: the app rejects
+attaching old-image gaze to the new image, while keeping the browser export.
+In the portable build, native tracker selection defaults to the bundled
+browser/RealEye route; unbundled EyeTrax/Tobii options are hidden.
+
+
+Capture-flow regression test (uses a synthetic image and simulated camera/SDK;
+no real webcam or model weights are required):
+
+```sh
+npm install
+npx playwright install chromium
+npm run test:capture
+```
+
+The Python app dependencies must already be installed. Set `PYTHON` to the
+chosen Python executable if needed. QA screenshots go to `outputs/capture-qa/`.
+These checks verify software flow, not the accuracy of eye-gaze estimation.

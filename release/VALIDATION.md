@@ -39,3 +39,18 @@ loopback server, shares its CPU inference engine, and shuts it down on exit.
 Exact installed build versions are in windows-build-requirements.txt.
 
 The actual PyInstaller Windows executable passes real-checkpoint CPU inference (384 px, 35 imported fixations), exporting an original-size binary mask. Its smoke run took 8.43 s including model load. The portable build includes the local browser assets and excludes pretrained model weights.
+
+
+## Capture-flow correction (preview 2)
+
+Nine Python tests pass, adding desktop-image session delivery and rejection of
+old-image gaze after a desktop image change. A native Tk integration check
+also verifies image handoff, receipt/plotting of returned fixations and the
+portable build's browser-only tracker selection.
+
+Chrome workflow checks use an explicitly simulated tracker and fake camera:
+17-target calibration returns to the image; record mode keeps the image
+visible; live sample/dwell counters update; stop plots a fixation and sends
+it to the desktop session; a no-face run keeps raw export with an explanatory
+zero-fixation message; cancel restores the image. These tests validate app
+control flow and coordinate mapping, not real-observer gaze accuracy.

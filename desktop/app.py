@@ -4,6 +4,7 @@ import csv
 import json
 import queue
 import threading
+import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -58,8 +59,9 @@ class GazeRefineApp:
         options=ttk.Frame(root,padding=(16,0,16,10));options.pack(fill="x")
         ttk.Label(options,text="Click duration (ms)").pack(side="left")
         ttk.Entry(options,textvariable=self.duration,width=7).pack(side="left",padx=8)
-        self.source=tk.StringVar(value="EyeTrax webcam")
-        ttk.Combobox(options,textvariable=self.source,values=["EyeTrax webcam","Tobii Pro hardware"],state="readonly",width=22).pack(side="left",padx=8)
+        self.source=tk.StringVar(value="Browser / RealEye webcam")
+        sources=["Browser / RealEye webcam"] if getattr(sys,"frozen",False) else ["Browser / RealEye webcam","EyeTrax webcam","Tobii Pro hardware"]
+        ttk.Combobox(options,textvariable=self.source,values=sources,state="readonly",width=25).pack(side="left",padx=8)
         ttk.Button(options,text="Start gaze capture",command=self.start_tracker).pack(side="left",padx=4)
         ttk.Button(options,text="Stop / make fixations",command=self.stop_tracker).pack(side="left",padx=4)
         self.run_button=ttk.Button(options,text="Run on CPU",command=self.predict);self.run_button.pack(side="right")
@@ -83,6 +85,7 @@ class GazeRefineApp:
         if not path:return
         try:
             self.image=load_image(path);self.image_path=path;self.points=[];self.samples=[];self.result=None
+            if self.browser_server:self.browser_server.set_session(self.image,self.points,Path(path).name)
             self.view.set("Image + gaze");self.redraw();self.status.set(f"{Path(path).name} | {self.image.width} × {self.image.height}. Click the target or import expert gaze.")
         except Exception as exc:self.error(exc)
 
@@ -135,6 +138,8 @@ class GazeRefineApp:
     def start_tracker(self):
         if self.image is None:return self.error("Open an image first.")
         if self.tracker or self.busy:return
+        if self.source.get().startswith("Browser"):
+            return self.open_browser()
         # Require matching display coordinates for the calibrated primary monitor.
         if not messagebox.askokcancel("Gaze capture","Use the primary monitor at 100% OS scaling. Keep this window still. EyeTrax opens its calibration targets; Tobii must be calibrated in Eye Tracker Manager. Start capture?",parent=self.root):return
         self.samples=[]
@@ -174,6 +179,11 @@ class GazeRefineApp:
             elif kind=="result":
                 self.result=value;self.busy=False;self.run_button.state(["!disabled"]);self.view.set("Mask overlay");self.redraw()
                 m=value["metadata"];self.status.set(f"Done in {m['seconds_including_model_load']:.1f}s | CPU | {m['resolution']} px | {'Preview; not benchmark settings' if m['preview'] else 'Full resolution'}")
+            elif kind=="browser_capture":
+                if self.browser_server and value['revision']==self.browser_server.session_version:
+                    self.points.extend(value['fixations']);self.samples=value['samples'];self.result=None
+                    self.view.set("Image + gaze");self.redraw()
+                    self.status.set(f"Received {len(value['fixations'])} fixations from browser gaze capture. Ready to run on CPU.")
             elif kind in ("tracker_error","inference_error"):
                 if kind=="tracker_error" and self.tracker:self.tracker.stop();self.tracker=None
                 self.busy=False;self.run_button.state(["!disabled"]);self.status.set(value);self.error(value)
@@ -197,7 +207,10 @@ class GazeRefineApp:
         if self.browser_server is None:
             self.browser_server=AppServer(("127.0.0.1",0))
             self.browser_server.engine=self.engine
+            self.browser_server.on_capture=lambda data:self.events.put(("browser_capture",data))
             threading.Thread(target=self.browser_server.serve_forever,daemon=True).start()
+        if self.image is not None:
+            self.browser_server.set_session(self.image,self.points,Path(self.image_path).name if self.image_path else "Desktop image")
         webbrowser.open(f"http://127.0.0.1:{self.browser_server.server_port}")
 
     def close(self):
