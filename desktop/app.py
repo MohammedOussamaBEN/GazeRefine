@@ -21,6 +21,7 @@ class GazeRefineApp:
         self.image_path = None
         self.points, self.samples = [], []
         self.tracker = None
+        self.browser_server = None
         self.busy = False
         self.rect = (0,0,1,1)
         root.title("GazeRefine | Local CPU segmentation")
@@ -36,7 +37,8 @@ class GazeRefineApp:
         ttk.Label(bar,text="  Expert gaze → frozen features → segmentation  |  CPU").pack(side="left")
         toolbar = ttk.Frame(root, padding=(16,0,16,10)); toolbar.pack(fill="x")
         for label, command in [("Open image / DICOM",self.open_image),("Import fixation CSV",self.import_csv),
-                               ("Undo point",self.undo),("Clear gaze",self.clear),("Save outputs",self.save)]:
+                               ("Undo point",self.undo),("Clear gaze",self.clear),("Save outputs",self.save),
+                               ("Browser / RealEye",self.open_browser)]:
             ttk.Button(toolbar,text=label,command=command).pack(side="left",padx=(0,7))
         settings = ttk.Frame(root,padding=(16,0,16,10)); settings.pack(fill="x")
         self.modality = tk.StringVar(value="colonoscopy")
@@ -189,8 +191,19 @@ class GazeRefineApp:
                 writer=csv.writer(f);writer.writerow(columns);writer.writerows(rows)
         self.status.set(f"Saved masks, overlays, gaze and configuration to {p}")
 
+    def open_browser(self):
+        import webbrowser
+        from scripts.serve_app import AppServer
+        if self.browser_server is None:
+            self.browser_server=AppServer(("127.0.0.1",0))
+            self.browser_server.engine=self.engine
+            threading.Thread(target=self.browser_server.serve_forever,daemon=True).start()
+        webbrowser.open(f"http://127.0.0.1:{self.browser_server.server_port}")
+
     def close(self):
         if self.tracker:self.tracker.stop()
+        if self.browser_server:
+            self.browser_server.shutdown();self.browser_server.server_close()
         self.root.destroy()
 
 

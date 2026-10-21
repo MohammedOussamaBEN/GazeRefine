@@ -168,25 +168,29 @@ The static site is in `docs/`. Preview it with
 The intended public URL is:
 https://MohammedOussamaBEN.github.io/GazeRefine/
 
-To publish after reviewing/merging the branch: enable **Settings → Pages →
-Source: GitHub Actions**. `.github/workflows/pages.yml` deploys `docs/` on main.
+The initial public deployment uses the review branch's `/docs` directory.
+After reviewing/merging the branch, switch **Settings → Pages → Source** to
+**GitHub Actions**. `.github/workflows/pages.yml` then deploys `docs/` on main.
 The native/browser apps are not executed by the static project website.
 
 ## Windows executable build
 
-Run **Build Windows desktop app** in GitHub Actions (`workflow_dispatch`).
+A portable Windows CPU preview is available at https://github.com/MohammedOussamaBEN/GazeRefine/releases/tag/cpu-studio-preview-1. Extract the whole ZIP and run GazeRefine.exe. It is unsigned; model weights download separately on first inference.
+
+To rebuild, run **Build Windows desktop app** in GitHub Actions (`workflow_dispatch`).
 It produces a downloadable `GazeRefine-Windows-CPU` artifact; it does not
 automatically publish a release or bundle pretrained weights. The core build
-supports image/CSV/manual inference. Optional EyeTrax and Tobii SDKs are not
+supports image/CSV/manual inference and a **Browser / RealEye** button that opens the bundled local webcam-capable browser app. Optional EyeTrax and Tobii SDKs are not
 bundled: use the source installation for those adapters. For a local build:
 
 ```sh
 python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --onedir --windowed --name GazeRefine --collect-all timm --collect-all matplotlib --collect-all pydicom desktop_launcher.py
+python -m PyInstaller --noconfirm --onedir --windowed --name GazeRefine --collect-all timm --collect-all matplotlib --collect-all pydicom --add-data "webapp;webapp" desktop_launcher.py
 ```
 
 The source app is tested independently of the executable build. A workflow
 definition alone does not establish that a signed/distributed binary exists.
+Local binary build/validation details are recorded in `release/VALIDATION.md`.
 
 ## Validation
 

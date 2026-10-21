@@ -1,6 +1,6 @@
 # Validation record
 
-Validated locally on Windows, Python 3.10.11, PyTorch 2.7.0, timm 1.0.22.
+Validated locally on Windows, Python 3.10.6, PyTorch 2.7.0, timm 1.0.22.
 All model calls explicitly use CPU FP32. A matching, locally cached DINOv3
 ViT-L/16 pretrained checkpoint was used; weights are not distributed here.
 
@@ -30,3 +30,12 @@ Not yet established by these checks: live calibration accuracy, webcam gaze
 quality, physical Tobii acquisition, multi-monitor/high-DPI mapping, clinical
 performance, or reproduction of retrospective paper Dice scores by app runs.
 Those require the relevant observer, hardware and evaluation protocol.
+
+Additional clean-build checks: CPU-only PyTorch 2.7.0+cpu, timm 1.0.30,
+NumPy 2.2.6 and Hugging Face Hub 1.33.0 pass the same automated tests and a
+real-weight inference check. Both modalities also pass at the 592-pixel
+preview resolution. The native app's Browser / RealEye button starts the
+loopback server, shares its CPU inference engine, and shuts it down on exit.
+Exact installed build versions are in windows-build-requirements.txt.
+
+The actual PyInstaller Windows executable passes real-checkpoint CPU inference (384 px, 35 imported fixations), exporting an original-size binary mask. Its smoke run took 8.43 s including model load. The portable build includes the local browser assets and excludes pretrained model weights.

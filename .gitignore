@@ -14,4 +14,7 @@ outputs/
 release/cpu-smoke/
 release/benchmark-output/
 release/*.zip
+release/*.log
+release/*.pid
+release/pull_request.md
 .env
