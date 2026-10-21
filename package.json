@@ -1,6 +1,11 @@
 {
   "name": "gazerefine-browser-regression",
   "private": true,
-  "scripts": {"test:capture": "node tests/browser_capture.cjs"},
-  "devDependencies": {"playwright": "1.62.1"}
+  "scripts": {
+    "test:capture": "node tests/browser_capture.cjs",
+    "test:site": "node tests/project_site.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
 }
