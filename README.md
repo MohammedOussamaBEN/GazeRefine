@@ -1,5 +1,20 @@
 # GazeRefine 👁️
 
+## Project website and local CPU apps
+
+Project page: **https://MohammedOussamaBEN.github.io/GazeRefine/**
+
+```sh
+python -m pip install -r requirements-app.txt
+python -m desktop.app             # native desktop: image / DICOM + gaze
+python scripts/serve_app.py        # local browser app + optional RealEye capture
+```
+
+See [APP_GUIDE.md](APP_GUIDE.md) for CPU installation, offline checkpoints,
+EyeTrax webcam / Tobii Pro hardware input, gaze CSVs, exports, and Windows builds.
+384/592 px are preview modes; published benchmark scores do not apply to them.
+Original research evaluation settings remain separate from interactive presets.
+
 ## Expert Gaze as a Test-Time Prompt for Training-Free Medical Image Segmentation
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)

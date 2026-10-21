@@ -1,0 +1,17 @@
+source,weighted,knn,bg,kvasir,prostate
+Expert,Yes,True,True,88.1,80.28
+Expert,Yes,True,False,27.89,20.68
+Expert,Yes,False,True,87.51,80.15
+Expert,Yes,False,False,27.59,19.81
+Expert,No,True,True,87.75,80.62
+Expert,No,True,False,27.87,20.5
+Expert,No,False,True,87.16,80.52
+Expert,No,False,False,27.57,19.64
+Center prior,—,True,True,36.47,41.13
+Center prior,—,True,False,27.75,26.26
+Center prior,—,False,True,35.21,40.75
+Center prior,—,False,False,27.64,26.1
+Shuffled expert,Yes,True,True,36.72,51.25
+Shuffled expert,Yes,True,False,27.1,19.95
+Shuffled expert,Yes,False,True,35.99,50.98
+Shuffled expert,Yes,False,False,27.17,19.47

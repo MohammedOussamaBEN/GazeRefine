@@ -1,0 +1,56 @@
+# Validation record
+
+Validated locally on Windows, Python 3.10.6, PyTorch 2.7.0, timm 1.0.22.
+All model calls explicitly use CPU FP32. A matching, locally cached DINOv3
+ViT-L/16 pretrained checkpoint was used; weights are not distributed here.
+
+* Seven automated checks pass: equal/single-duration prompts, invalid input,
+  explicit CSV units and image selection, dwell grouping across gaps,
+  chunked exact kNN agreement with a full matrix, local API session/origin
+  protection, and static-route boundaries.
+* Native Tk app initializes, displays an image, clears gaze, and shuts down.
+* Real-weight CPU inference succeeds for shipped colonoscopy and DICOM
+  examples at 384 and 1184 pixels, with original-size mask exports.
+* Representative 384-pixel timings: 11.06 s colonoscopy including initial model
+  load, then 1.36 s MRI using the cached model. Full-resolution timings:
+  32.60 s colonoscopy including initial load, then 22.51 s MRI. These are smoke
+  timings on one workstation, not controlled performance benchmarks.
+* The default pretrained model also loads from the normal Hugging Face cache
+  without a custom checkpoint path, with offline mode enabled.
+* Chrome desktop (1440 px) and mobile (390 px) checks pass: no horizontal
+  overflow; image comparison toggle works. All local images decode.
+* Browser app uploads the supplied example, imports its 35 gaze rows, runs
+  actual CPU inference, renders the overlay, and offers the binary mask
+  download. No browser JavaScript errors were observed.
+* The actual optional RealEye 1.1.0 browser package imports and initializes
+  its CPU MediaPipe backend; its API returns 17 calibration targets. Camera
+  access was not requested for this validation.
+
+Not yet established by these checks: live calibration accuracy, webcam gaze
+quality, physical Tobii acquisition, multi-monitor/high-DPI mapping, clinical
+performance, or reproduction of retrospective paper Dice scores by app runs.
+Those require the relevant observer, hardware and evaluation protocol.
+
+Additional clean-build checks: CPU-only PyTorch 2.7.0+cpu, timm 1.0.30,
+NumPy 2.2.6 and Hugging Face Hub 1.33.0 pass the same automated tests and a
+real-weight inference check. Both modalities also pass at the 592-pixel
+preview resolution. The native app's Browser / RealEye button starts the
+loopback server, shares its CPU inference engine, and shuts it down on exit.
+Exact installed build versions are in windows-build-requirements.txt.
+
+The actual PyInstaller Windows executable passes real-checkpoint CPU inference (384 px, 35 imported fixations), exporting an original-size binary mask. Its smoke run took 8.43 s including model load. The portable build includes the local browser assets and excludes pretrained model weights.
+
+
+## Capture-flow correction (preview 2)
+
+Nine Python tests pass, adding desktop-image session delivery and rejection of
+old-image gaze after a desktop image change. A native Tk integration check
+also verifies image handoff, receipt/plotting of returned fixations and the
+portable build's browser-only tracker selection.
+
+Chrome workflow checks use an explicitly simulated tracker and fake camera:
+17-target calibration returns to the image; record mode keeps the image
+visible; live sample/dwell counters update; stop plots a fixation and sends
+it to the desktop session; a no-face run keeps raw export with an explanatory
+zero-fixation message; cancel restores the image. These tests validate app
+control flow and coordinate mapping, not real-observer gaze accuracy.

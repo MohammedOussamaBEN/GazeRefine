@@ -1,0 +1,38 @@
+{
+  "python": "3.10.6",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "runs": [
+    {
+      "modality": "colonoscopy",
+      "resolution": 384,
+      "threshold": 0.5,
+      "duration_weighted": true,
+      "device": "cpu",
+      "backbone": "vit_large_patch16_dinov3.lvd1689m",
+      "sigma": 2.0,
+      "knn_k": 20,
+      "max_iters": 5,
+      "anchor": 0.5,
+      "knn_temp": 0.05,
+      "preview": true,
+      "n_fixations": 35,
+      "seconds_including_model_load": 11.063
+    },
+    {
+      "modality": "mri",
+      "resolution": 384,
+      "threshold": 0.5,
+      "duration_weighted": true,
+      "device": "cpu",
+      "backbone": "vit_large_patch16_dinov3.lvd1689m",
+      "sigma": 0.5,
+      "knn_k": 3,
+      "max_iters": 1,
+      "anchor": 0.8,
+      "knn_temp": 0.05,
+      "preview": true,
+      "n_fixations": 14,
+      "seconds_including_model_load": 1.364
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Public website figures are linked directly to the existing public repository: main/img/zero-shot_archi.jpg and main/img/seg_results.png. No journal draft PDF, newly exported medical image, or private fixation file is included in this site. The coordinate-noise plot contains aggregate results only. The complete local manuscript-based preview is outside this git repository.

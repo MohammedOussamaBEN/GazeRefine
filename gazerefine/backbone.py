@@ -36,12 +36,17 @@ class FrozenDINOv3(nn.Module):
         self,
         model_name: str = "vit_large_patch16_dinov3.lvd1689m",
         extract_mode: str = "last",
+        img_size: int | None = None,
+        checkpoint: str | None = None,
     ):
         super().__init__()
         import timm  # local import: keeps `timm` optional for users who only read the code
 
         print(f"[GazeRefine] Loading frozen backbone: {model_name} (extract_mode={extract_mode})")
-        bb = timm.create_model(model_name, pretrained=True, num_classes=0)
+        kwargs = {} if img_size is None else {"img_size": img_size, "dynamic_img_size": True}
+        bb = timm.create_model(model_name, pretrained=checkpoint is None, num_classes=0, **kwargs)
+        if checkpoint:
+            timm.models.load_checkpoint(bb, checkpoint, strict=True)
         for p in bb.parameters():
             p.requires_grad_(False)
         bb.eval()

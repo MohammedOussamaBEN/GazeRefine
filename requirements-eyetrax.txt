@@ -1,0 +1,3 @@
+-r requirements-app.txt
+# Optional webcam acquisition; installed only on computers used for capture.
+eyetrax==0.4.0
